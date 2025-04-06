@@ -71,7 +71,58 @@ def add_user(user_id: str, organization_id: str, first_name: str, last_name: str
 
 ---
 
-## ✏️ 2. Update a User's Info
+## 🪪 2. Update a User's membership status
+
+This function updates the `membershipExpired` field for a specific user in the `Users` table.  
+It takes the `userId` and a `True` or `False` value to mark whether the user's membership is expired.
+
+For example:
+- `True` means the membership is **expired**
+- `False` means the membership is **active**
+
+It uses `update_item` to modify only the `membershipExpired` field without affecting other user data.
+
+```python
+def update_membership_status(user_id: str, expired: bool) -> bool:
+    try:
+        users_table.update_item(
+            Key={"userId": user_id},
+            UpdateExpression="SET membershipExpired = :status",
+            ExpressionAttributeValues={":status": expired}
+        )
+        print(f"✅ Membership status updated for user {user_id} → expired = {expired}")
+        return True
+    except Exception as e:
+        print(f"❌ Failed to update membership status: {e}")
+        return False
+```
+--- 
+
+## 🧑‍💼 3. Update a User's first name and last name
+
+This will change the user's `firstName` and `lastName` while leaving the rest of their data unchanged.
+
+```python
+def update_user_name(user_id: str, first_name: str, last_name: str) -> bool:
+    try:
+        users_table.update_item(
+            Key={"userId": user_id},
+            UpdateExpression="SET firstName = :fn, lastName = :ln",
+            ExpressionAttributeValues={
+                ":fn": first_name,
+                ":ln": last_name
+            }
+        )
+        print(f"✅ Name updated for user {user_id}: {first_name} {last_name}")
+        return True
+    except Exception as e:
+        print(f"❌ Failed to update name: {e}")
+        return False
+```
+
+---
+
+## ✏️ 4. Update a User's Info
 
 This updates any combination of first name, last name, or phone.
 
@@ -109,7 +160,7 @@ def update_user(user_id: str, first_name=None, last_name=None, phone=None) -> bo
 
 ---
 
-## 🗑️ 3. Delete a User
+## 🗑️ 5. Delete a User
 
 ```python
 def delete_user(user_id: str) -> bool:
@@ -124,7 +175,7 @@ def delete_user(user_id: str) -> bool:
 
 ---
 
-## 🔍 4. Get a User by ID
+## 🔍 6. Get a User by ID
 
 ```python
 def get_user(user_id: str):
@@ -143,7 +194,7 @@ def get_user(user_id: str):
 
 ---
 
-## 👥 5. Get Users by Organization ID
+## 👥 7. Get Users by Organization ID
 
 ```python
 def get_users_by_organization(org_id: str):
@@ -162,7 +213,7 @@ def get_users_by_organization(org_id: str):
 
 ---
 
-## 💤 6. Get All Inactive Users (Invitation Codes)
+## 💤 8. Get All Inactive Users (Invitation Codes)
 
 Inactive users have `userId` values starting with `;;$#`.
 
@@ -183,7 +234,7 @@ def get_inactive_users():
 
 ---
 
-## 🔄 7. Replace Temporary User ID (Invitation Code Flow)
+## 🔄 9. Replace Temporary User ID (Invitation Code Flow)
 
 This activates an inactive user by replacing their temporary `userId` with a real one.
 
@@ -209,7 +260,7 @@ def activate_user(invitation_code: str, new_user_id: str) -> bool:
 
 ---
 
-## ⏳ 8. Expire User Membership
+## ⏳ 10. Expire User Membership
 
 ```python
 def expire_membership(user_id: str) -> bool:
@@ -228,7 +279,7 @@ def expire_membership(user_id: str) -> bool:
 
 ---
 
-## 📊 9. Count Total Users
+## 📊 11. Count Total Users
 
 Supports pagination to get the full count even for large datasets.
 
