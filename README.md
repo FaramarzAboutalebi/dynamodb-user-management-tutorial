@@ -213,7 +213,46 @@ def get_users_by_organization(org_id: str):
 
 ---
 
-## 💤 8. Get All Inactive Users (Invitation Codes)
+## 🗑️ 8. Delete All Users of an Organization
+
+```python
+def delete_users_by_organization(org_id: str) -> bool:
+    try:
+        # Step 1: Get all users belonging to the organization
+        response = users_table.scan(
+            FilterExpression="organizationId = :org_id",
+            ExpressionAttributeValues={":org_id": org_id}
+        )
+        users = response.get("Items", [])
+        
+        if not users:
+            print(f"No users found in organization {org_id}.")
+            return False
+
+        # Step 2: Delete each user by their userId
+        for user in users:
+            user_id = user["userId"]
+            users_table.delete_item(Key={"userId": user_id})
+            print(f"Deleted user {user_id} from organization {org_id}")
+
+        print(f"✅ Deleted {len(users)} users from organization {org_id}")
+        return True
+
+    except Exception as e:
+        print(f"❌ Failed to delete users: {e}")
+        return False
+```
+
+---
+
+### 🧑‍💻 Active vs. Inactive Users in Our System
+
+We have **two types of users** in our `Users` table:
+
+1. **Active Users** – Registered users with normal `userId` values (e.g., `"user123"`).
+2. **Inactive Users** – Users who have **not completed registration** yet. Their `userId` starts with a special prefix `";;$#"` followed by a unique invitation code (e.g., `";;$#abc123"`).
+
+## 💤 9. Get All Inactive Users (Invitation Codes)
 
 Inactive users have `userId` values starting with `;;$#`.
 
@@ -234,33 +273,46 @@ def get_inactive_users():
 
 ---
 
-## 🔄 9. Replace Temporary User ID (Invitation Code Flow)
-
-This activates an inactive user by replacing their temporary `userId` with a real one.
+## 🔄 10. Check if the invitation code is valid:
 
 ```python
 def activate_user(invitation_code: str, new_user_id: str) -> bool:
     try:
+        # 🔍 Get all inactive users (userIds that start with ';;$#')
         users = get_inactive_users()
+
         for user in users:
-            code = user["userId"].replace(";;$#", "")
-            if code == invitation_code:
-                new_item = user.copy()
-                new_item["userId"] = new_user_id
-                users_table.put_item(Item=new_item)
-                users_table.delete_item(Key={"userId": user["userId"]})
-                print(f"User activated: {invitation_code} -> {new_user_id}")
-                return True
-        print("Invitation code not found.")
+            user_id = user.get("userId", "")
+
+            # ✅ Ensure the userId starts with the expected prefix
+            if user_id.startswith(";;$#"):
+                # 🧩 Extract the actual code (remove ';;$#')
+                extracted_code = user_id[len(";;$#"):]
+
+                # 🔁 Compare with provided invitation_code
+                if extracted_code == invitation_code:
+                    # 🧬 Copy the user, assign the real userId
+                    new_item = user.copy()
+                    new_item["userId"] = new_user_id
+
+                    # ✅ Add new user record and delete old invitation user
+                    users_table.put_item(Item=new_item)
+                    users_table.delete_item(Key={"userId": user_id})
+
+                    print(f"User activated: {invitation_code} → {new_user_id}")
+                    return True
+
+        print("❌ Invitation code not found.")
         return False
+
     except Exception as e:
-        print(f"Failed to activate user: {e}")
+        print(f"❌ Failed to activate user: {e}")
         return False
 ```
 
 ---
 
-## ⏳ 10. Expire User Membership
+## ⏳ 11. Expire User Membership
 
 ```python
 def expire_membership(user_id: str) -> bool:
@@ -279,7 +331,7 @@ def expire_membership(user_id: str) -> bool:
 
 ---
 
-## 📊 11. Count Total Users
+## 📊 12. Count Total Users
 
 Supports pagination to get the full count even for large datasets.
 
@@ -287,16 +339,54 @@ Supports pagination to get the full count even for large datasets.
 def count_all_users() -> int:
     try:
         count = 0
+
+        # 🔍 Perform the initial scan of the table (up to 1MB of data)
         response = users_table.scan()
         count += len(response.get("Items", []))
 
+        # 🔁 DynamoDB returns only up to 1MB of data per scan.
+        # If there are more items, the response includes 'LastEvaluatedKey'.
+        # This loop continues scanning the table using pagination until all users are counted.
         while 'LastEvaluatedKey' in response:
+            # 📌 Continue scanning from where the previous scan left off
             response = users_table.scan(ExclusiveStartKey=response['LastEvaluatedKey'])
-            count += len(response.get("Items", []))
+            count += len(response.get("Items", []))  # 🧮 Add number of items in this batch
 
+        # ✅ After all pages are scanned, print the total count
         print(f"Total users: {count}")
         return count
+
     except Exception as e:
+        # ❌ Handle and log any errors during the scan process
         print(f"Failed to count users: {e}")
         return 0
 ```
+
+---
+
+## 🖨️ 13. Print All Rows from Users Table
+
+```python
+def print_all_users() -> None:
+    try:
+        # Step 1: Initial scan
+        response = users_table.scan()
+        users = response.get("Items", [])
+
+        # Step 2: Print each user in the first batch
+        for user in users:
+            print(user)
+
+        # Step 3: Keep scanning if there are more items (pagination)
+        while 'LastEvaluatedKey' in response:
+            response = users_table.scan(ExclusiveStartKey=response['LastEvaluatedKey'])
+            users = response.get("Items", [])
+            for user in users:
+                print(user)
+
+        print("✅ Finished printing all users.")
+    
+    except Exception as e:
+        print(f"❌ Failed to print users: {e}")
+```
+
